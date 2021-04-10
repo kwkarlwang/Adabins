@@ -4,7 +4,6 @@ import argparse
 
 
 def read_file(path):
-    path += ".json"
     print(path)
     if os.path.isfile(path):
         with open(path) as json_file:

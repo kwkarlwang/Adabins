@@ -1,9 +1,8 @@
-#%%
+# %%
 import timm
 import torch
 import torch.nn as nn
 from typing import Callable, Dict
-
 
 model_name = "vit_base_patch16_384"
 
@@ -23,13 +22,12 @@ class Encoder(nn.Module):
             for hook in hooks:
                 layer_name = f"blocks.{hook}"
                 modules[layer_name].register_forward_hook(
-                    save_output_hook(hook, self.output)
-                )
+                    save_output_hook(hook, self.output))
 
         super(Encoder, self).__init__()
-        self.transformer = timm.create_model(
-            model_name, pretrained=True, drop_rate=config["dropout"]
-        )
+        self.transformer = timm.create_model(model_name,
+                                             pretrained=True,
+                                             drop_rate=config["dropout"])
         hooks = config["hooks"]
         modules = dict(self.transformer.named_modules())
         self.output = {}
@@ -49,4 +47,4 @@ if __name__ == "__main__":
     output = model(x)
     print(output[11].shape)
 
-#%%
+# %%

@@ -1,15 +1,11 @@
-#%%
-from torch.utils.data import Dataset, DataLoader  # For custom data-sets
+# %%
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
-from torchvision.transforms import functional as F
 import os
 import numpy as np
 from PIL import Image
 import torch
-import pandas as pd
 from collections import namedtuple
-import h5py
-import matplotlib.pyplot as plt
 import time
 import random
 
@@ -80,7 +76,7 @@ class ToNumpy(object):
         return np.array(sample)
 
 
-#%%
+# %%
 # class mapping
 # https://github.com/ankurhanda/SceneNetv1.0/
 # class 0 is unknown
@@ -110,13 +106,21 @@ class NYUDataset(Dataset):
         self.normalize = transforms.Normalize(
             (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
         )
-
-        if not use_transform:
+        if dataset_type == "val":
             self.resize_img = transforms.Compose(
                 [
                     transforms.Resize(size=out_size, interpolation=Image.BILINEAR),
                     transforms.ToTensor(),
-                    # mean and std values calculated over training data
+                ]
+            )
+            self.resize_label = transforms.ToTensor()
+            self.resize_depth = transforms.ToTensor()
+
+        elif not use_transform:
+            self.resize_img = transforms.Compose(
+                [
+                    transforms.Resize(size=out_size, interpolation=Image.BILINEAR),
+                    transforms.ToTensor(),
                 ]
             )
 
@@ -208,7 +212,7 @@ class NYUDataset(Dataset):
             img = img * colors[:, None, None]
             img = img.clamp(0, 1)
             img = img.to(torch.float32)
-        # img = self.normalize(img)
+        img = self.normalize(img)
 
         if self.max_depth:
             depth[depth != depth] = self.max_depth
@@ -217,19 +221,16 @@ class NYUDataset(Dataset):
 
 # %%
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
     dataset = NYUDataset("test", use_transform=False)
     maxNum = 0
-    for i in range(600):
+    for i in range(2):
         img, depth, semseg = dataset[i]
-        maxNum = max(maxNum, depth.max())
-        # plt.imshow(depth)
+        print(img.shape)
+        print(depth.shape)
+        print(semseg.shape)
+        plt.imshow(depth)
 
-    # plt.imshow(semseg)
-    # plt.imshow(depth)
-    # for i, (img, depth, semseg) in enumerate(dataset):
-    #     if (depth == 0).sum() > 0:
-    #         print(i)
-    #         break
-    # img, depth, semseg = dataset[2]
 
-#%%
+# %%

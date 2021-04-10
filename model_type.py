@@ -143,6 +143,7 @@ class MultiTask(ModelType):
             "acc": acc,
         }
 
+
 class MultiTaskRecon(ModelType):
     def __init__(self, loss_type, alpha=0):
         super().__init__(loss_type)
@@ -213,11 +214,14 @@ def naive_multiloss_recon(outputs, targets, alpha):
         depth_out, depth
     )
     recon_loss = mseloss(recon, recon_out)
-    return alpha * seg_loss + (1 - alpha)//2 * depth_loss + (1 - alpha)//2 * recon_loss
+    return (
+        alpha * seg_loss + (1 - alpha) // 2 * depth_loss + (1 - alpha) // 2 * recon_loss
+    )
 
 
 def mseloss(output, target):
     return F.mse_loss(output, target)
+
 
 def customl1loss(output, target):
     mask = torch.isnan(target)

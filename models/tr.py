@@ -1,15 +1,15 @@
-#%%
+# %%
 import torch
 import torch.nn as nn
-from transformer import Encoder
-from reassemble import Reassemble
+from .transformer import Encoder
+from .reassemble import Reassemble
 
 
 class Transformer_Reassemble(nn.Module):
-    def __init__(self):
+    def __init__(self, config: dict, task="depth"):
         super().__init__()
-        self.encoder = Encoder()
-        self.reassemble = Reassemble()
+        self.encoder = Encoder(config["encoder"])
+        self.reassemble = Reassemble(config["reassemble"], task)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         outputs = self.encoder(x)
@@ -21,4 +21,4 @@ if __name__ == "__main__":
     x = torch.randn((2, 3, 384, 384))
     print(model(x).shape)
 
-#%%
+# %%

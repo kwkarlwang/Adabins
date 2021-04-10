@@ -1,4 +1,4 @@
-#%%
+# %%
 #!/usr/bin/env python3
 
 import glob
@@ -122,4 +122,4 @@ def main(logdir_or_logfile: str, write_pkl: bool, write_csv: bool, out_dir: str)
 
 if __name__ == "__main__":
     main()
-#%%
+# %%
