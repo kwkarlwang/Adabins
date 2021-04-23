@@ -1,7 +1,7 @@
 # %%
 import torch
 import torch.nn as nn
-from .transformer import Encoder
+from .encoder import Encoder
 from .reassemble import Reassemble
 
 

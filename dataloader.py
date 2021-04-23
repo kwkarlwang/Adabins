@@ -12,7 +12,6 @@ import random
 
 n_class = 41
 
-# TODO change path to your hypersim_data directory
 DATA_PATH = "./data/"
 
 # a label and all meta information
@@ -91,12 +90,15 @@ class NYUDataset(Dataset):
         max_depth=0,
         use_transform=False,
     ):
-        assert dataset_type in ["train", "test"]
-        if dataset_type == "test":
-            dataset_type = "val"
+        assert dataset_type in ["train", "val", "test"]
         self.dataset_type = dataset_type
         self.image_names = np.loadtxt(
-            os.path.join(data_path, "NYUD_MT", "gt_sets", f"{dataset_type}.txt"),
+            os.path.join(
+                data_path,
+                "NYUD_MT",
+                "gt_sets",
+                f"{'train' if dataset_type == 'train' else 'val'}.txt",
+            ),
             dtype=str,
         )
         self.n_class = n_class
@@ -106,7 +108,7 @@ class NYUDataset(Dataset):
         self.normalize = transforms.Normalize(
             (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
         )
-        if dataset_type == "val":
+        if dataset_type == "val" or dataset_type == "test":
             self.resize_img = transforms.Compose(
                 [
                     transforms.Resize(size=out_size, interpolation=Image.BILINEAR),
@@ -143,6 +145,7 @@ class NYUDataset(Dataset):
         else:
             self.resize_img = transforms.Compose(
                 [
+                    transforms.Resize(size=out_size, interpolation=Image.BILINEAR),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
                 ]
@@ -151,6 +154,7 @@ class NYUDataset(Dataset):
             self.resize_label = transforms.Compose(
                 [
                     transforms.ToPILImage(),
+                    transforms.Resize(size=out_size, interpolation=Image.NEAREST),
                     transforms.RandomHorizontalFlip(),
                     ToNumpy(),
                     transforms.ToTensor(),
@@ -160,6 +164,7 @@ class NYUDataset(Dataset):
             self.resize_depth = transforms.Compose(
                 [
                     transforms.ToPILImage(),
+                    transforms.Resize(size=out_size, interpolation=Image.NEAREST),
                     transforms.RandomHorizontalFlip(),
                     ToNumpy(),
                     transforms.ToTensor(),
@@ -185,14 +190,15 @@ class NYUDataset(Dataset):
             self.data_path, "NYUD_MT", "segmentation", self.image_names[idx]
         )
 
-        img = Image.open(img_path + ".jpg")
+        orig_img = Image.open(img_path + ".jpg")
+
         depth = np.load(depth_path + ".npy")
         semseg = np.array(Image.open(semseg_path + ".png"), dtype=np.int32)
 
         seed = int(time.time())
         random.seed(seed)
         torch.manual_seed(seed)  # needed for torchvision 0.7
-        img = self.resize_img(img)
+        img = self.resize_img(orig_img)
 
         random.seed(seed)
         torch.manual_seed(seed)  # needed for torchvision 0.7
@@ -216,6 +222,8 @@ class NYUDataset(Dataset):
 
         if self.max_depth:
             depth[depth != depth] = self.max_depth
+        if self.dataset_type == "test":
+            return img, depth, semseg, np.array(orig_img)
         return img, depth, semseg
 
 
@@ -224,13 +232,13 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     dataset = NYUDataset("test", use_transform=False)
-    maxNum = 0
     for i in range(2):
-        img, depth, semseg = dataset[i]
+        img, depth, semseg, orig_img = dataset[i]
         print(img.shape)
         print(depth.shape)
         print(semseg.shape)
-        plt.imshow(depth)
-
+        print(orig_img.shape)
+        plt.figure(figsize=(10, 10))
+        plt.imshow(img.permute(1, 2, 0))
 
 # %%

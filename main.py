@@ -5,6 +5,7 @@ import sys
 from experiment import DepthExperiment, Experiment
 from pytorch_lightning.callbacks import ModelCheckpoint
 import os
+from pprint import pprint
 
 
 def get_experiment(task: str) -> Experiment:
@@ -47,15 +48,14 @@ if __name__ == "__main__":
     checkpoint_callback = ModelCheckpoint(
         monitor="val_mIoU"
         if config["experiment"]["task"] != "depth"
-        else "val_rel_err",
+        else "val_rms_err",
         mode="max" if config["experiment"]["task"] != "depth" else "min",
         save_last=True,
     )
 
     print("-" * 80)
     print("RUNNING FOLLOWING EXPERIMENT")
-    for key, value in config.items():
-        print(f"\t{key}: {value}")
+    pprint(config)
     print("-" * 80)
 
     experiment = get_experiment(config["experiment"]["task"])
@@ -65,6 +65,13 @@ if __name__ == "__main__":
         )
     else:
         exp = experiment(hparams, config=config)
+        if not fast_dev_run:
+            target_path = f"./{experiment_folder}/{config['name']}/{config['version']}"
+            os.makedirs(target_path, exist_ok=True)
+            write_to_file(
+                f"{target_path}/config.json",
+                config,
+            )
 
     trainer = pl.Trainer(
         fast_dev_run=fast_dev_run,

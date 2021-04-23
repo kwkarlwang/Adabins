@@ -17,6 +17,21 @@ class L1Loss(nn.Module):
         return F.l1_loss(output[~mask], target[~mask])
 
 
+# refer to https://proceedings.neurips.cc/paper/2014/file/7bccfde7714a1ebadf06c5f4cea752c1-Paper.pdf
+class EigenLoss(nn.Module):
+    def __init__(self, lamb=0.5):
+        super().__init__()
+        self.lamb = lamb
+
+    def forward(self, output, target):
+        # print("nan results")
+        # print(mask.sum())
+        mask = output != 0
+        output, target = output[mask], target[mask]
+        diff = torch.log(output) - torch.log(target)
+        return torch.sqrt((diff ** 2).mean() - self.lamb * (diff.mean() ** 2)) * 10.0
+
+
 class RelativeError(Metric):
     def __init__(
         self,

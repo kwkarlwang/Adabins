@@ -1,0 +1,68 @@
+{
+    "name": "dpt_hybrid_higher_feature",
+    "version": "feature_512_conv_64",
+    "gpus": 1,
+    "save_results": [
+        0,
+        1,
+        2,
+        3,
+        4
+    ],
+    "experiment": {
+        "task": "depth",
+        "learning_rate": 1e-4,
+        "epochs": 120,
+        "loss": "eigen",
+        "lambda": 0.65
+    },
+    "model": {
+        "name": "DPT",
+        "encoder": {
+            "hooks": [
+                0,
+                1,
+                8,
+                11
+            ],
+            "dropout": 0.0,
+            "name": "hybrid"
+        },
+        "reassemble": {
+            "output_features": 512,
+            "features": [
+                256,
+                512,
+                768,
+                768
+            ],
+            "img_size": [
+                384,
+                384
+            ],
+            "s": [
+                4,
+                8,
+                16,
+                32
+            ],
+            "input_features": 768
+        },
+        "decoder": {
+            "features": 512
+        },
+        "head": {
+            "intermediate_features": 64
+        }
+    },
+    "dataset": {
+        "name": "nyu",
+        "batch_size": 2,
+        "num_workers": 8,
+        "use_transform": true,
+        "img_size": [
+            480,
+            640
+        ]
+    }
+}
