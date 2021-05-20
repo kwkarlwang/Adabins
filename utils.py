@@ -23,11 +23,12 @@ class EigenLoss(nn.Module):
         super().__init__()
         self.lamb = lamb
 
-    def forward(self, output, target):
+    def forward(self, output, target, mask=None):
         # print("nan results")
         # print(mask.sum())
         # mask = output != 0
-        # output, target = output[mask], target[mask]
+        if mask is not None:
+            output, target = output[mask], target[mask]
         diff = torch.log(output) - torch.log(target)
         return torch.sqrt((diff ** 2).mean() - self.lamb * (diff.mean() ** 2)) * 10.0
 

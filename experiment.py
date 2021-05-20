@@ -190,8 +190,8 @@ class DepthExperiment(Experiment):
     def _get_batch_data(self, output, target):
         output, target = self._select_output_target(output, target)
         output = self._post_processing(output)
-        loss = self.loss(output, target)
-        print(output.shape, target.shape)
+        mask = output > self.config["model"]["min_depth"]
+        loss = self.loss(output, target, mask)
         # calculate depth data
         self.metrics["rel_err"](output, target)
         self.metrics["rms_err"](output, target)
