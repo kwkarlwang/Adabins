@@ -27,7 +27,7 @@ if __name__ == "__main__":
     checkpoint_path = (
         config["experiment"]["checkpoint_path"]
         if "checkpoint_path" in config["experiment"]
-        else False
+        else None
     )
     if resume_from_checkpoint and not checkpoint_path:
         path = f"./{experiment_folder}/{config['name']}/{config['version']}/checkpoints"
@@ -69,7 +69,6 @@ if __name__ == "__main__":
                 f"{target_path}/config.json",
                 config,
             )
-
     trainer = pl.Trainer(
         fast_dev_run=fast_dev_run,
         resume_from_checkpoint=checkpoint_path,

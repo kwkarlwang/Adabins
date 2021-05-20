@@ -1,6 +1,6 @@
 {
     "name": "adabins",
-    "version": "default",
+    "version": "l2",
     "gpus": 1,
     "save_results": [
         0,
@@ -13,8 +13,9 @@
         "task": "depth",
         "learning_rate": 3e-4,
         "epochs": 120,
-        "loss": "eigen",
-        "lambda": 0.85
+        "loss": "adabins",
+        "lambda": 0.85,
+        "chamfer": 0.1
     },
     "model": {
         "name": "adabins",

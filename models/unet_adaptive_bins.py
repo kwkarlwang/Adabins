@@ -134,8 +134,8 @@ class UnetAdaptiveBins(nn.Module):
 
         pred = torch.sum(out * centers, dim=1, keepdim=True)
 
-        # return bin_edges, pred
-        return pred.squeeze(1)
+        return bin_edges, pred
+        # return pred.squeeze(1)
 
     def get_1x_lr_params(self):
         return self.encoder.parameters()

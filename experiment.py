@@ -1,11 +1,11 @@
 from dataloader import NYUDataset
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as tf
+import torch.nn.functional as F
 from torch.utils.data import DataLoader  # For custom data-sets
 import pytorch_lightning as pl
 from models.unet_adaptive_bins import UnetAdaptiveBins
-from utils import L1Loss, RelativeError, RootMeanSquaredError, EigenLoss
+from utils import L1Loss, RelativeError, RootMeanSquaredError, EigenLoss, AdabinsLoss
 from typing import Union, Tuple
 from torch import Tensor
 from PIL import Image
@@ -190,8 +190,11 @@ class DepthExperiment(Experiment):
     def _get_batch_data(self, output, target):
         output, target = self._select_output_target(output, target)
         output = self._post_processing(output)
-        mask = output > self.config["model"]["min_depth"]
-        loss = self.loss(output, target, mask)
+        if self.config["experiment"]["loss"] == "eigen":
+            mask = output > self.config["model"]["min_depth"]
+            loss = self.loss(output, target, mask)
+        else:
+            loss = self.loss(output, target)
         # calculate depth data
         self.metrics["rel_err"](output, target)
         self.metrics["rms_err"](output, target)
@@ -209,13 +212,24 @@ class DepthExperiment(Experiment):
         elif loss == "eigen":
             lamb = config.get("lambda", 0.5)
             return EigenLoss(lamb)
+        elif loss == "adabins":
+            lamb = config.get("lambda", 0.5)
+            chamfer = config.get("chamfer", 0)
+            return AdabinsLoss(lamb, chamfer)
         else:
             raise ValueError(f"Unknown loss {loss}")
 
-    def _post_processing(self, output: Tensor):
-        output = tf.resize(output, self.config["dataset"]["img_size"])
+    def _post_processing(self, output: Tuple[Tensor, Tensor]):
+        # output = tf.resize(output, self.config["dataset"]["img_size"])
+        bin_edges, pred = output
+        pred = F.interpolate(
+            pred,
+            size=self.config["dataset"]["img_size"],
+            mode="bilinear",
+            align_corners=True,
+        ).squeeze(1)
         # back to 480x640
-        return output
+        return bin_edges, pred
 
     def _output_to_image(self, idx, img, output, target):
         output, target = self._select_output_target(output, target)
