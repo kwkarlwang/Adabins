@@ -1,14 +1,13 @@
-# %%
 import pytorch_lightning as pl
 from file_utils import read_file, dict_to_args, write_to_file
 import sys
-from experiment import DepthExperiment, Experiment
+from experiment import DepthExperiment
 from pytorch_lightning.callbacks import ModelCheckpoint
 import os
 from pprint import pprint
 
 
-def get_experiment(task: str) -> Experiment:
+def get_experiment(task: str):
     if task == "depth":
         return DepthExperiment
     else:
@@ -60,11 +59,9 @@ if __name__ == "__main__":
 
     experiment = get_experiment(config["experiment"]["task"])
     if resume_from_checkpoint or checkpoint_path:
-        exp = experiment.load_from_checkpoint(
-            checkpoint_path, hparams=hparams, config=config
-        )
+        exp = experiment.load_from_checkpoint(checkpoint_path, config=config)
     else:
-        exp = experiment(hparams, config=config)
+        exp = experiment(config=config)
         if not fast_dev_run:
             target_path = f"./{experiment_folder}/{config['name']}/{config['version']}"
             os.makedirs(target_path, exist_ok=True)

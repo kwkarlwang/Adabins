@@ -85,7 +85,7 @@ class NYUDataset(Dataset):
         dataset_type="train",
         n_class=n_class,
         in_size=(480, 640),
-        out_size=(384, 384),
+        out_size=(480, 640),
         data_path=DATA_PATH,
         max_depth=0,
         use_transform=False,

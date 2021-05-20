@@ -1,3 +1,3 @@
-# DPT
+# Adabins
 
-Implementation of Intel's DPT paper.
+Implementation of Adabins.

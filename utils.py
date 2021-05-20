@@ -26,8 +26,8 @@ class EigenLoss(nn.Module):
     def forward(self, output, target):
         # print("nan results")
         # print(mask.sum())
-        mask = output != 0
-        output, target = output[mask], target[mask]
+        # mask = output != 0
+        # output, target = output[mask], target[mask]
         diff = torch.log(output) - torch.log(target)
         return torch.sqrt((diff ** 2).mean() - self.lamb * (diff.mean() ** 2)) * 10.0
 

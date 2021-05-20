@@ -1,0 +1,36 @@
+{
+    "name": "adabins",
+    "version": "default",
+    "gpus": 1,
+    "save_results": [
+        0,
+        1,
+        2,
+        3,
+        4
+    ],
+    "experiment": {
+        "task": "depth",
+        "learning_rate": 3e-4,
+        "epochs": 120,
+        "loss": "eigen",
+        "lambda": 0.85
+    },
+    "model": {
+        "name": "adabins",
+        "n_bins": 256,
+        "min_depth": 1e-3,
+        "max_depth": 10,
+        "norm": "linear"
+    },
+    "dataset": {
+        "name": "nyu",
+        "batch_size": 2,
+        "num_workers": 8,
+        "use_transform": false,
+        "img_size": [
+            480,
+            640
+        ]
+    }
+}

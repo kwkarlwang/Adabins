@@ -4,8 +4,7 @@ import torch.nn as nn
 import torchvision.transforms.functional as tf
 from torch.utils.data import DataLoader  # For custom data-sets
 import pytorch_lightning as pl
-from models.tr import Transformer_Reassemble
-from models.DPT import DPT_Depth
+from models.unet_adaptive_bins import UnetAdaptiveBins
 from utils import L1Loss, RelativeError, RootMeanSquaredError, EigenLoss
 from typing import Union, Tuple
 from torch import Tensor
@@ -13,26 +12,24 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import os
 
-
 # %%
 class Experiment(pl.LightningModule):
-    def __init__(self, hparams, config, verbose=True):
+    def __init__(self, config, verbose=True):
         super().__init__()
         # this will save the hyperparameters
-        self.hparams = hparams
         self.config = config
         self.verbose = verbose
-        self.model = self.select_model(self.config["model"])
-        self.loss = self.select_loss(self.config["experiment"])
+        self.model = self._select_model(self.config["model"])
+        self.loss = self._select_loss(self.config["experiment"])
         experiment_folder = "experiment_data"
         self.path = f"./{experiment_folder}/{config['name']}/{config['version']}"
-        self.metrics = self.init_metrics()
+        self.metrics = self._init_metrics()
         self.save_results = config.get("save_results", [])
 
-    def init_metrics(self) -> dict:
+    def _init_metrics(self) -> dict:
         raise NotImplementedError()
 
-    def select_dataloader(self, config: dict, dataset_type: str):
+    def _select_dataloader(self, config: dict, dataset_type: str):
         name = config["name"].lower()
         batch_size = config["batch_size"]
         num_workers = config["num_workers"]
@@ -54,36 +51,37 @@ class Experiment(pl.LightningModule):
         else:
             raise ValueError(f"Unknown dataset {name}")
 
-    def select_model(self, config: dict):
+    def _select_model(self, config: dict):
         raise NotImplementedError()
 
-    def select_loss(self, config: dict):
+    def _select_loss(self, config: dict):
         raise NotImplementedError()
 
-    def get_batch_data(
-        self, output: Union[Tensor, Tuple[Tensor]], target: Tuple[Tensor]
+    def _get_batch_data(
+        self, output: Union[Tensor, Tuple[Tensor]], target: Tuple[Tensor, Tensor]
     ):
         raise NotImplementedError()
 
-    def process_output_target(
-        self, output: Union[Tensor, Tuple[Tensor]], target: Tuple[Tensor]
+    def _select_output_target(
+        self, output: Union[Tensor, Tuple[Tensor]], target: Tuple[Tensor, Tensor]
     ):
-        raise NotImplementedError()
+        return output, target
 
-    def post_processing(self, output):
-        raise NotImplementedError()
+    def _post_processing(self, output: Tensor):
+        return output
 
-    def output_to_image(self, idx, img, output, target):
+    def _output_to_image(self, idx, img, output, target):
         raise NotImplementedError()
 
     def forward(self, x):
         return self.model(x)
 
-    def training_step(self, batch: Tensor, batch_idx: int):
+    def training_step(self, batch: Tuple[Tensor, Tensor, Tensor], batch_idx: int):
         img, depth, semseg = batch
         target = (semseg, depth)
         output = self(img)
-        output, target = self.process_output_target(output, target)
+        output, target = self._select_output_target(output, target)
+        output = self._post_processing(output)
         loss = self.loss(output, target)
         self.log("train_loss", loss, on_epoch=True, on_step=False)
         if self.verbose and batch_idx % 20 == 0:
@@ -94,7 +92,7 @@ class Experiment(pl.LightningModule):
         img, depth, semseg = batch
         target = (semseg, depth)
         output = self(img)
-        return self.get_batch_data(output, target)
+        return self._get_batch_data(output, target)
 
     def validation_epoch_end(self, output: list):
         loss = torch.mean(torch.tensor(output))
@@ -117,8 +115,8 @@ class Experiment(pl.LightningModule):
         target = (semseg, depth)
         output = self(img)
         if batch_idx in self.save_results:
-            self.output_to_image(batch_idx, orig_img, output, target)
-        return self.get_batch_data(output, target)
+            self._output_to_image(batch_idx, orig_img, output, target)
+        return self._get_batch_data(output, target)
 
     def test_epoch_end(self, output: list):
         loss = torch.mean(torch.tensor(output))
@@ -130,10 +128,18 @@ class Experiment(pl.LightningModule):
         for metric in self.metrics.values():
             metric.reset()
 
+    # MUST OVERRIDE
     def configure_optimizers(self):
-        optim = torch.optim.Adam(
-            self.parameters(), lr=self.config["experiment"]["learning_rate"]
-        )
+        lr = self.config["experiment"]["learning_rate"]
+        if self.config["model"]["name"] == "adabins":
+            params = [
+                {"params": self.model.get_1x_lr_params(), "lr": lr / 10},
+                {"params": self.model.get_10x_lr_params(), "lr": lr},
+            ]
+        else:
+            params = self.parameters()
+
+        optim = torch.optim.AdamW(params, lr=lr)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optim, mode="min", factor=0.2, patience=5, verbose=True
         )
@@ -141,53 +147,60 @@ class Experiment(pl.LightningModule):
         return {"optimizer": optim, "lr_scheduler": scheduler, "monitor": self.monitor}
 
     def train_dataloader(self):
-        return self.select_dataloader(self.config["dataset"], "train")
+        return self._select_dataloader(self.config["dataset"], "train")
 
     def val_dataloader(self):
-        return self.select_dataloader(self.config["dataset"], "val")
+        return self._select_dataloader(self.config["dataset"], "val")
 
     def test_dataloader(self):
-        return self.select_dataloader(self.config["dataset"], "test")
+        return self._select_dataloader(self.config["dataset"], "test")
 
 
 class DepthExperiment(Experiment):
-    def __init__(self, hparams, config, verbose=True):
-        super().__init__(hparams, config, verbose=verbose)
+    def __init__(self, config, verbose=True):
+        super().__init__(config, verbose=verbose)
         self.monitor = "val_rms_err"
 
-    def select_model(self, config):
-        name = config["name"]
-        if name == "transformer reassemble":
-            return Transformer_Reassemble(self.config["model"], task="depth")
-        elif name == "DPT":
-            return DPT_Depth(self.config["model"])
+    def _select_model(self, config: dict):
+        name = config.get("name", "adabins").lower()
+        n_bins = config.get("n_bins", 256)
+        min_depth = config.get("min_depth", 1e-3)
+        max_depth = config.get("min_depth", 10)
+        norm = config.get("norm", "linear")
+        if name == "adabins":
+            # TODO: pass in the config
+            model = UnetAdaptiveBins.build(
+                n_bins=n_bins, min_val=min_depth, max_val=max_depth, norm=norm
+            )
+            return model
         else:
             raise ValueError(f"Unknown model {name}")
 
-    def init_metrics(self):
+    def _init_metrics(self):
         device = (
-            "cuda" if self.config["gpus"] > 0 and torch.cuda.is_available() else "cpu"
+            "cuda"
+            if self.config.get("gpus", 1) > 0 and torch.cuda.is_available()
+            else "cpu"
         )
         return {
             "rel_err": RelativeError(device=device),
             "rms_err": RootMeanSquaredError(device=device),
         }
 
-    def get_batch_data(self, output, target):
-        output, target = self.process_output_target(output, target)
-        output = self.post_processing(output)
+    def _get_batch_data(self, output, target):
+        output, target = self._select_output_target(output, target)
+        output = self._post_processing(output)
         loss = self.loss(output, target)
+        print(output.shape, target.shape)
         # calculate depth data
         self.metrics["rel_err"](output, target)
         self.metrics["rms_err"](output, target)
         return loss
 
-    def process_output_target(
-        self, output: Union[Tensor, Tuple[Tensor]], target: Tuple[Tensor]
-    ):
+    def _select_output_target(self, output: Tensor, target: Tuple[Tensor, Tensor]):
         return output, target[1]
 
-    def select_loss(self, config: dict):
+    def _select_loss(self, config: dict):
         loss = config["loss"].lower()
         if loss == "l1":
             return L1Loss()
@@ -199,14 +212,14 @@ class DepthExperiment(Experiment):
         else:
             raise ValueError(f"Unknown loss {loss}")
 
-    def post_processing(self, output: Tensor):
+    def _post_processing(self, output: Tensor):
         output = tf.resize(output, self.config["dataset"]["img_size"])
         # back to 480x640
         return output
 
-    def output_to_image(self, idx, img, output, target):
-        output, target = self.process_output_target(output, target)
-        output = self.post_processing(output)
+    def _output_to_image(self, idx, img, output, target):
+        output, target = self._select_output_target(output, target)
+        output = self._post_processing(output)
         path = f"{self.path}/test_{idx}"
         os.makedirs(path, exist_ok=True)
         for i in range(output.shape[0]):
@@ -216,16 +229,6 @@ class DepthExperiment(Experiment):
             normalize_term = max(
                 target[i].max().cpu().item(), output[i].max().cpu().item()
             )
-            # im = Image.fromarray((output[i].cpu().numpy() / normalize_term), 'LA')
-            # im.save(f"{path}/depth_{i}.png")
-
-            # im = Image.fromarray((target[i].cpu().numpy() / normalize_term), 'LA')
-            # im.save(f"{path}/depth_gt_{i}.png")
-            # plt.figure(figsize=(8, 6))
-            # plt.imshow(img[i].cpu())
-            # plt.axis("off")
-            # plt.savefig(f"{path}/img_{i}", bbox_inches="tight")
-            # plt.close()
 
             plt.figure(figsize=(8, 6))
             plt.imshow(output[i].cpu() / normalize_term)
